@@ -99,11 +99,27 @@ def send_whatsapp_text(to_number: str, text: str):
     r = requests.post(url, headers=headers, json=body, timeout=30)
     r.raise_for_status()
 
+from fastapi.responses import PlainTextResponse
+from fastapi import Request
+
+@app.get("/health")
+async def health():
+    return PlainTextResponse("ok")
+
 @app.get("/webhook")
-async def verify(mode: Optional[str] = None, challenge: Optional[str] = None, token: Optional[str] = None):
+async def verify(request: Request):
+    qp = dict(request.query_params)
+    # TEMP: log what we received + what we expect
+    print("WEBHOOK VERIFY HIT:", qp, "ENV_VERIFY_TOKEN:", repr(VERIFY_TOKEN))
+
+    mode = qp.get("hub.mode")
+    token = qp.get("hub.verify_token")
+    challenge = qp.get("hub.challenge")
+
     if mode == "subscribe" and token == VERIFY_TOKEN:
-        return int(challenge) if (challenge and challenge.isdigit()) else (challenge or "")
-    return "forbidden"
+        return PlainTextResponse(challenge or "")
+    return PlainTextResponse("forbidden", status_code=403)
+
 
 @app.post("/webhook")
 async def inbound(request: Request):
@@ -144,3 +160,4 @@ async def inbound(request: Request):
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
+
